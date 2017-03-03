@@ -152,7 +152,6 @@ public class NativeAd extends CordovaPlugin {
      */
     public boolean execute(String action, CordovaArgs args, final CallbackContext callbackContext) throws JSONException {
         if (action.equals("open")) {
-            this.callbackContext = callbackContext;
             final String html = args.getString(0);
             final int adw  = this.dpToPixels(args.getInt(1));
             final int adh = this.dpToPixels(args.getInt(2));
