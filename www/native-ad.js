@@ -20,45 +20,69 @@
 */
 
 (function() {
-	var exec = require('cordova/exec');
-	var modulemapper = require('cordova/modulemapper');
-	var urlutil = require('cordova/urlutil');
 
-	function AdView() {
-		this.id = 0;
-	}
+    var cordova = require('cordova');
+    var exec = require('cordova/exec');
+    var modulemapper = require('cordova/modulemapper');
+    var urlutil = require('cordova/urlutil');
+    var channel = require('cordova/channel');
 
-	AdView.prototype = {
-		close: function () {
-			this.id && exec(null, null, "NativeAd", "close", [this.id]);
-		}
-	};
+    function AdView() {
+        this.id = 0;
+        this.onClose = function () {};
+    }
 
-	module.exports = {
-		openUrl: function(strUrl, strWindowName, strWindowFeatures, callbacks) {
-			// Don't catch calls that write to existing frames (e.g. named iframes).
-			if (window.frames && window.frames[strWindowName]) {
-				var origOpenFunc = modulemapper.getOriginalSymbol(window, 'open');
-				return origOpenFunc.apply(window, arguments);
-			}
-			strUrl = urlutil.makeAbsolute(strUrl);
-			callbacks = callbacks || {};
-			var cb = function (eventname) { console.log('open ad landing page'); };
-			strWindowFeatures = strWindowFeatures || "";
-			exec(cb, cb, "NativeAd", "openUrl", [strUrl, strWindowName, strWindowFeatures]);
-		},
-		open: function(html, width, height, showAt, closeAt) {
-			var ad = new AdView();
-			width = width || 0;
-			height = height || 0;
-			showAt = showAt || 'bottom';
-			closeAt = closeAt || 'topRight';
-			var cb = function (id) {
-				console.log('open ad', id);
-				ad.id = id;
-			};
-			exec(cb, cb, "NativeAd", "open", [html, width, height, showAt, closeAt]);
-			return ad;
-		}
-	};
+    AdView.prototype = {
+        close: function () {
+            this.id && exec(null, null, "NativeAd", "close", [this.id]);
+        }
+    };
+
+    var NativeAd = {
+        ads: {},
+        onClose: function (id) {
+            var ad = this.ads[id];
+            if (ad) ad.onClose();
+        },
+        openUrl: function(strUrl, strWindowName, strWindowFeatures, callbacks) {
+            // Don't catch calls that write to existing frames (e.g. named iframes).
+            if (window.frames && window.frames[strWindowName]) {
+                var origOpenFunc = modulemapper.getOriginalSymbol(window, 'open');
+                return origOpenFunc.apply(window, arguments);
+            }
+            strUrl = urlutil.makeAbsolute(strUrl);
+            callbacks = callbacks || {};
+            var cb = function (eventname) {
+                console.log('open ad landing page');
+                callbacks(eventname);
+            };
+            strWindowFeatures = strWindowFeatures || "";
+            exec(cb, cb, "NativeAd", "openUrl", [strUrl, strWindowName, strWindowFeatures]);
+        },
+        open: function(html, width, height, showAt, closeAt) {
+            var ad = new AdView();
+            width = width || 0;
+            height = height || 0;
+            showAt = showAt || 'bottom';
+            closeAt = closeAt || 'topRight';
+            var cb = function (id) {
+                console.log('open ad', id);
+                ad.id = id;
+                NativeAd.ads[id] = ad;
+            };
+            exec(cb, cb, "NativeAd", "open", [html, width, height, showAt, closeAt]);
+            return ad;
+        }
+    };
+
+    if (cordova.platformId == 'android') {
+        channel.onCordovaReady.subscribe(function () {
+            exec(function (id) {
+                id && NativeAd.onClose(id);
+            }, null, "NativeAd", "onClose", []);
+        });
+    }
+
+    module.exports = NativeAd;
+
 })();

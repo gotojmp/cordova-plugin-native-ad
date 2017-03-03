@@ -102,6 +102,7 @@ public class NativeAd extends CordovaPlugin {
     private WebView inAppWebView;
     private EditText edittext;
     private CallbackContext callbackContext;
+    private CallbackContext onCallbackContext;
     private boolean showLocationBar = true;
     private boolean showZoomControls = true;
     private boolean openWindowHidden = false;
@@ -133,6 +134,12 @@ public class NativeAd extends CordovaPlugin {
         );
 
         return value;
+    }
+
+    public void onClose(int id) {
+        PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, id);
+        pluginResult.setKeepCallback(true);
+        this.onCallbackContext.sendPluginResult(pluginResult);
     }
 
     /**
@@ -175,6 +182,26 @@ public class NativeAd extends CordovaPlugin {
                     callbackContext.sendPluginResult(pluginResult);
                 }
             });
+        }
+        else if (action.equals("close")) {
+            final int id = args.getInt(0);
+            if (id > 0) {
+                cordova.getActivity().runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        NativeAdView adView = ads.get("ad-" + id);
+                        if (adView != null) {
+                            adView.closeAdView(false);
+                        }
+                    }
+                });
+            }
+        }
+        else if (action.equals("onClose")) {
+            this.onCallbackContext = callbackContext;
+            PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, 0);
+            pluginResult.setKeepCallback(true);
+            callbackContext.sendPluginResult(pluginResult);
         }
         else if (action.equals("openUrl")) {
             this.callbackContext = callbackContext;
@@ -269,20 +296,6 @@ public class NativeAd extends CordovaPlugin {
                     callbackContext.sendPluginResult(pluginResult);
                 }
             });
-        }
-        else if (action.equals("close")) {
-            final int id = args.getInt(0);
-            if (id > 0) {
-                cordova.getActivity().runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        NativeAdView adView = ads.get("ad-" + id);
-                        if (adView != null) {
-                            adView.closeAdView();
-                        }
-                    }
-                });
-            }
         }
         else {
             return false;

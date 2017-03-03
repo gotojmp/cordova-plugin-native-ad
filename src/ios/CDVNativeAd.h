@@ -80,6 +80,7 @@
 
 - (void)load:(NSString*)html closeAt:(NSString*)pos;
 - (void)close;
+- (void)userClose;
 
 @end
 

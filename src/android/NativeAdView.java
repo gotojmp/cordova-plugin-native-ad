@@ -41,6 +41,7 @@ public class NativeAdView extends FrameLayout {
     private WebView webView = null;
     private RelativeLayout container = null;
     public int id = 0;
+    private Boolean hidden = false;
 
     public NativeAdView(Context context, NativeAd nativeAd, int w, int h, int cw, int ch, String closeAt) {
         super(context);
@@ -89,7 +90,7 @@ public class NativeAdView extends FrameLayout {
         close.setGravity(Gravity.CENTER);
         close.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
-                closeAdView();
+                closeAdView(true);
             }
         });
         closeButton.addView(close);
@@ -100,8 +101,14 @@ public class NativeAdView extends FrameLayout {
         this.webView.loadData(html, "text/html; charset=UTF-8", null);
     }
 
-    public void closeAdView() {
-        ((ViewGroup)this.getParent()).removeView(this);
+    public void closeAdView(Boolean isUser) {
+        if (!this.hidden) {
+            ((ViewGroup) this.getParent()).removeView(this);
+        }
+        this.hidden = true;
+        if (isUser) {
+            this.nativeAd.onClose(this.id);
+        }
     }
 
     public class NativeAdViewClient extends WebViewClient {

@@ -62,6 +62,12 @@
     [self close:nil];
 }
 
+- (void)onClose:(int)id
+{
+    NSString* js = [NSString stringWithFormat:@"window.NativeAd.onClose(%d);", id];
+    [self.commandDelegate evalJs:js];
+}
+
 - (void)close:(CDVInvokedUrlCommand*)command
 {
     int id = [[command argumentAtIndex:0] intValue];
@@ -575,9 +581,15 @@
     [closeButton setBackgroundColor:[UIColor grayColor]];
     [closeButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
     [closeButton setTitle:@"关闭广告" forState:UIControlStateNormal];
-    [closeButton addTarget:self action:@selector(close) forControlEvents:UIControlEventTouchUpInside];
+    [closeButton addTarget:self action:@selector(userClose) forControlEvents:UIControlEventTouchUpInside];
 
     [self addSubview:closeButton];
+}
+
+- (void)userClose
+{
+    [self close];
+    [self.adDelegate onClose:self.id];
 }
 
 - (void)close
