@@ -19,8 +19,8 @@
 -->
 
 <plugin xmlns="http://apache.org/cordova/ns/plugins/1.0"
-           id="cordova-plugin-native-ad"
-      version="1.0.0">
+    id="cordova-plugin-native-ad"
+    version="1.1.0">
 
     <name>NativeAd</name>
     <description>Cordova Native Ad Plugin</description>
@@ -29,24 +29,29 @@
     <repo>https://github.com/gotojmp/cordova-plugin-native-ad.git</repo>
     <issue>https://github.com/gotojmp/cordova-plugin-native-ad/issue</issue>
 
+    <dependency id="cordova-plugin-uid" url="https://github.com/gotojmp/cordova-plugin-uid.git" />
+    <dependency id="cordova-plugin-sim" url="https://github.com/gotojmp/cordova-plugin-sim.git" />
+    <dependency id="cordova-plugin-http" url="https://github.com/gotojmp/cordova-plugin-http.git" />
+
     <engines>
-      <engine name="cordova" version=">=3.1.0" />
+        <engine name="cordova" version=">=3.1.0" />
     </engines>
 
     <!-- android -->
     <platform name="android">
         <js-module src="www/native-ad.js" name="NativeAd">
-            <clobbers target="cordova.NativeAd.open" />
+            <clobbers target="window.NativeAd" />
         </js-module>
         <config-file target="res/xml/config.xml" parent="/*">
             <feature name="NativeAd">
-                <param name="android-package" value="com.gotojmp.cordova.native-ad.NativeAd"/>
+                <param name="android-package" value="com.gotojmp.cordova.NativeAd.NativeAd"/>
             </feature>
         </config-file>
 
-        <source-file src="src/android/NativeAd.java" target-dir="src/com/gotojmp/cordova/native-ad" />
-        <source-file src="src/android/NativeAdDialog.java" target-dir="src/com/gotojmp/cordova/native-ad" />
-        <source-file src="src/android/ChromeClient.java" target-dir="src/com/gotojmp/cordova/native-ad" />
+        <source-file src="src/android/NativeAd.java" target-dir="src/com/gotojmp/cordova/NativeAd" />
+        <source-file src="src/android/NativeAdView.java" target-dir="src/com/gotojmp/cordova/NativeAd" />
+        <source-file src="src/android/NativeAdDialog.java" target-dir="src/com/gotojmp/cordova/NativeAd" />
+        <source-file src="src/android/ChromeClient.java" target-dir="src/com/gotojmp/cordova/NativeAd" />
 
         <!--  drawable src/android/resources -->
         <resource-file src="src/android/res/drawable-hdpi/ic_action_next_item.png" target="res/drawable-hdpi/ic_action_next_item.png" />
@@ -70,7 +75,7 @@
     <!-- ios -->
     <platform name="ios">
         <js-module src="www/native-ad.js" name="NativeAd">
-            <clobbers target="cordova.NativeAd.open" />
+            <clobbers target="window.NativeAd" />
         </js-module>
         <config-file target="config.xml" parent="/*">
             <feature name="NativeAd">
@@ -79,9 +84,9 @@
         </config-file>
 
         <header-file src="src/ios/CDVNativeAd.h" />
-	    <source-file src="src/ios/CDVNativeAd.m" />
-	    
-	    <framework src="CoreGraphics.framework" />
+        <source-file src="src/ios/CDVNativeAd.m" />
+
+        <framework src="CoreGraphics.framework" />
     </platform>
 
 </plugin>

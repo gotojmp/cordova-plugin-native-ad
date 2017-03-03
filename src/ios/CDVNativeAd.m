@@ -84,15 +84,24 @@
 - (void)open:(CDVInvokedUrlCommand *)command
 {
     NSString* html = [command argumentAtIndex:0];
-    NSString* adw = [command argumentAtIndex:1];
-    NSString* adh = [command argumentAtIndex:2];
-    NSString* left = [command argumentAtIndex:3];
-    NSString* top = [command argumentAtIndex:4];
+    float adw = [[command argumentAtIndex:1] floatValue];
+    float adh = [[command argumentAtIndex:2] floatValue];
+    NSString* showAt = [command argumentAtIndex:3];
+    NSString* closeAt = [command argumentAtIndex:4];
 
-    AdView* adView = [[AdView alloc] initWithFrame:(CGRectMake([left floatValue], [top floatValue], [adw floatValue], [adh floatValue]))];
+    CGRect rect = self.webView.frame;
+    float left = 0.0;
+    float top = 0.0;
+    if ([showAt isEqualToString:@"center"]) {
+        top = rect.size.height / 2 - adh / 2;
+    } else if ([showAt isEqualToString:@"bottom"]) {
+        top = rect.size.height - adh;
+    }
+
+    AdView* adView = [[AdView alloc] initWithFrame:(CGRectMake(left, top, adw, adh))];
     adView.adDelegate = self;
     adView.id = ++_adId;
-    [adView load:html];
+    [adView load:html closeAt:closeAt];
 
     [self.webView addSubview:adView];
     [self.ads setObject:adView forKey:[NSString stringWithFormat:@"ad-%d", adView.id]];
@@ -535,19 +544,30 @@
 
 #pragma mark AdView
 
-@interface AdView () <WKNavigationDelegate> {
+@interface AdView () <UIWebViewDelegate> {
 }
 @end
 
 @implementation AdView
 
-- (void)load:(NSString*)html {
-    self.navigationDelegate = self;
+- (void)load:(NSString*)html closeAt:(NSString*)pos {
+    self.delegate = self;
     [self loadHTMLString:html baseURL:nil];
 
     CGRect rect = self.frame;
-    rect.origin.x = rect.size.width - 60.0;
-    rect.origin.y = 0.0;
+    if ([pos isEqualToString:@"topLeft"]) {
+        rect.origin.x = 0.0;
+        rect.origin.y = 0.0;
+    } else if ([pos isEqualToString:@"topRight"]) {
+        rect.origin.x = rect.size.width - 60.0;
+        rect.origin.y = 0.0;
+    } else if ([pos isEqualToString:@"bottomLeft"]) {
+        rect.origin.x = 0.0;
+        rect.origin.y = rect.size.height - 20.0;
+    } else if ([pos isEqualToString:@"bottomRight"]) {
+        rect.origin.x = rect.size.width - 60.0;
+        rect.origin.y = rect.size.height - 20.0;
+    }
     rect.size.width = 60.0;
     rect.size.height = 20.0;
     UIButton* closeButton = [[UIButton alloc] initWithFrame:rect];
@@ -565,29 +585,32 @@
     [self removeFromSuperview];
 }
 
-- (void)webView:(WKWebView *)webView decidePolicyForNavigationAction:(WKNavigationAction *)navigationAction decisionHandler:(void (^)(WKNavigationActionPolicy))decisionHandler {
-
-    NSURL *url = [navigationAction.request URL];
-
+- (BOOL)webView:(UIWebView*)theWebView shouldStartLoadWithRequest:(NSURLRequest*)request navigationType:(UIWebViewNavigationType)navigationType
+{
+    NSURL* url = request.URL;
     if (
         (
          [[url scheme] isEqualToString:@"http"]
          ||
          [[url scheme] isEqualToString:@"https"]
          ||
-         [[url scheme] isEqualToString: @"mailto"]
+         [[url scheme] isEqualToString:@"mailto"]
+         ||
+         [[url scheme] isEqualToString:@"itms"]
+         ||
+         [[url scheme] isEqualToString:@"itms-apps"]
          )
         &&
         (
-         navigationAction.navigationType == WKNavigationTypeLinkActivated
-         )
+         navigationType == UIWebViewNavigationTypeFormSubmitted
+         ||
+         navigationType == UIWebViewNavigationTypeLinkClicked
+        )
         ) {
         [self.adDelegate openInNativeAd:url withOptions:@""];
-        decisionHandler(WKNavigationActionPolicyCancel);
-        return;
+        return NO;
     }
-
-    decisionHandler(WKNavigationActionPolicyAllow);
+    return YES;
 }
 
 @end
@@ -677,9 +700,10 @@
 
     self.toolbar = [[UIToolbar alloc] initWithFrame:toolbarFrame];
     self.toolbar.alpha = 1.000;
+    self.toolbar.translucent = YES;
     self.toolbar.autoresizesSubviews = YES;
     self.toolbar.autoresizingMask = toolbarIsAtBottom ? (UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleTopMargin) : UIViewAutoresizingFlexibleWidth;
-    self.toolbar.barStyle = UIBarStyleBlackOpaque;
+    self.toolbar.barStyle = UIBarStyleDefault;
     self.toolbar.clearsContextBeforeDrawing = NO;
     self.toolbar.clipsToBounds = NO;
     self.toolbar.contentMode = UIViewContentModeScaleToFill;
@@ -732,7 +756,7 @@
 
     [self.toolbar setItems:@[self.closeButton, flexibleSpaceButton, self.backButton, fixedSpaceButton, self.forwardButton]];
 
-    self.view.backgroundColor = [UIColor grayColor];
+    //self.view.backgroundColor = [UIColor grayColor];
     [self.view addSubview:self.toolbar];
     [self.view addSubview:self.addressLabel];
     [self.view addSubview:self.spinner];
@@ -830,18 +854,11 @@
             webViewBounds.size.height -= FOOTER_HEIGHT;
             locationbarFrame.origin.y = webViewBounds.size.height;
             self.addressLabel.frame = locationbarFrame;
-            self.toolbar.frame = toolbarFrame;
-        } else {
-            // no locationBar, so put toolBar at the bottom
-            CGRect webViewBounds = self.view.bounds;
-            webViewBounds.size.height -= TOOLBAR_HEIGHT;
-            self.toolbar.frame = toolbarFrame;
         }
 
         if ([toolbarPosition isEqualToString:kNativeAdToolbarBarPositionTop]) {
             toolbarFrame.origin.y = 0;
             webViewBounds.origin.y += toolbarFrame.size.height;
-            [self setWebViewFrame:webViewBounds];
         } else {
             toolbarFrame.origin.y = (webViewBounds.size.height + LOCATIONBAR_HEIGHT);
         }
@@ -942,7 +959,10 @@
     if (IsAtLeastiOSVersion(@"7.0")) {
         [[UIApplication sharedApplication] setStatusBarStyle:[self preferredStatusBarStyle]];
     }
+
     [self rePositionViews];
+
+    [self.webView.scrollView setContentInset:UIEdgeInsetsZero];
 
     [super viewWillAppear:animated];
 }
@@ -961,7 +981,7 @@
 - (void) rePositionViews {
     if ([_browserOptions.toolbarposition isEqualToString:kNativeAdToolbarBarPositionTop]) {
         [self.webView setFrame:CGRectMake(self.webView.frame.origin.x, TOOLBAR_HEIGHT, self.webView.frame.size.width, self.webView.frame.size.height)];
-        [self.toolbar setFrame:CGRectMake(self.toolbar.frame.origin.x, [self getStatusBarOffset], self.toolbar.frame.size.width, self.toolbar.frame.size.height)];
+        //[self.toolbar setFrame:CGRectMake(self.toolbar.frame.origin.x, [self getStatusBarOffset], self.toolbar.frame.size.width, self.toolbar.frame.size.height)];
     }
 }
 
@@ -1072,7 +1092,7 @@
         self.location = NO;
         self.toolbar = YES;
         self.closebuttoncaption = @"返回";
-        self.toolbarposition = kNativeAdToolbarBarPositionBottom;
+        self.toolbarposition = kNativeAdToolbarBarPositionTop;
         self.clearcache = NO;
         self.clearsessioncache = NO;
 
@@ -1135,19 +1155,21 @@
     }
 }
 
+/*
 - (void) viewDidLoad {
-
     CGRect statusBarFrame = [self invertFrameIfNeeded:[UIApplication sharedApplication].statusBarFrame];
     statusBarFrame.size.height = STATUSBAR_HEIGHT;
     // simplified from: http://stackoverflow.com/a/25669695/219684
 
     UIToolbar* bgToolbar = [[UIToolbar alloc] initWithFrame:statusBarFrame];
     bgToolbar.barStyle = UIBarStyleDefault;
+    bgToolbar.translucent = YES;
     [bgToolbar setAutoresizingMask:UIViewAutoresizingFlexibleWidth];
     [self.view addSubview:bgToolbar];
 
     [super viewDidLoad];
 }
+ */
 
 - (CGRect) invertFrameIfNeeded:(CGRect)rect {
     // We need to invert since on iOS 7 frames are always in Portrait context

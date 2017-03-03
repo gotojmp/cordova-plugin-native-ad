@@ -16,11 +16,12 @@
        specific language governing permissions and limitations
        under the License.
 */
-package com.gotojmp.cordova.native-ad;
+package com.gotojmp.cordova.NativeAd;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Color;
 import android.provider.Browser;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
@@ -33,6 +34,7 @@ import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
 import android.view.WindowManager.LayoutParams;
@@ -40,6 +42,7 @@ import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.webkit.CookieManager;
 import android.webkit.CookieSyncManager;
+import android.webkit.DownloadListener;
 import android.webkit.HttpAuthHandler;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
@@ -47,10 +50,13 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
+import android.widget.TextView;
+import android.widget.Toast;
 
 import org.apache.cordova.CallbackContext;
 import org.apache.cordova.Config;
@@ -110,6 +116,25 @@ public class NativeAd extends CordovaPlugin {
     private final static int FILECHOOSER_REQUESTCODE = 1;
     private final static int FILECHOOSER_REQUESTCODE_LOLLIPOP = 2;
 
+    private HashMap<String, NativeAdView> ads;
+    private int _adId = 0;
+
+    @Override
+    protected void pluginInitialize() {
+        super.pluginInitialize();
+        this.ads = new HashMap<String, NativeAdView>();
+    }
+
+
+    public int dpToPixels(int dipValue) {
+        int value = (int) TypedValue.applyDimension( TypedValue.COMPLEX_UNIT_DIP,
+                (float) dipValue,
+                cordova.getActivity().getResources().getDisplayMetrics()
+        );
+
+        return value;
+    }
+
     /**
      * Executes the request and returns PluginResult.
      *
@@ -120,6 +145,38 @@ public class NativeAd extends CordovaPlugin {
      */
     public boolean execute(String action, CordovaArgs args, final CallbackContext callbackContext) throws JSONException {
         if (action.equals("open")) {
+            this.callbackContext = callbackContext;
+            final String html = args.getString(0);
+            final int adw  = this.dpToPixels(args.getInt(1));
+            final int adh = this.dpToPixels(args.getInt(2));
+            final String showAt = args.optString(3);
+            final String closeAt = args.optString(4);
+            final int cw = this.dpToPixels(60);
+            final int ch = this.dpToPixels(20);
+            cordova.getActivity().runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    NativeAdView adView = new NativeAdView(cordova.getActivity(), getNativeAd(), adw, adh, cw, ch, closeAt);
+                    adView.id = ++_adId;
+                    adView.load(html);
+
+                    FrameLayout.LayoutParams layoutParams = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                    if (showAt.equals("center")) {
+                        layoutParams.gravity = Gravity.CENTER;
+                    } else if (showAt.equals("top")) {
+                        layoutParams.gravity = Gravity.TOP;
+                    } else {
+                        layoutParams.gravity = Gravity.BOTTOM;
+                    }
+                    cordova.getActivity().addContentView(adView, layoutParams);
+                    ads.put("ad-" + adView.id, adView);
+                    PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, adView.id);
+                    pluginResult.setKeepCallback(true);
+                    callbackContext.sendPluginResult(pluginResult);
+                }
+            });
+        }
+        else if (action.equals("openUrl")) {
             this.callbackContext = callbackContext;
             final String url = args.getString(0);
             String t = args.optString(1);
@@ -214,63 +271,18 @@ public class NativeAd extends CordovaPlugin {
             });
         }
         else if (action.equals("close")) {
-            closeDialog();
-        }
-        else if (action.equals("injectScriptCode")) {
-            String jsWrapper = null;
-            if (args.getBoolean(1)) {
-                jsWrapper = String.format("(function(){prompt(JSON.stringify([eval(%%s)]), 'gap-iab://%s')})()", callbackContext.getCallbackId());
+            final int id = args.getInt(0);
+            if (id > 0) {
+                cordova.getActivity().runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        NativeAdView adView = ads.get("ad-" + id);
+                        if (adView != null) {
+                            adView.closeAdView();
+                        }
+                    }
+                });
             }
-            injectDeferredObject(args.getString(0), jsWrapper);
-        }
-        else if (action.equals("injectScriptFile")) {
-            String jsWrapper;
-            if (args.getBoolean(1)) {
-                jsWrapper = String.format("(function(d) { var c = d.createElement('script'); c.src = %%s; c.onload = function() { prompt('', 'gap-iab://%s'); }; d.body.appendChild(c); })(document)", callbackContext.getCallbackId());
-            } else {
-                jsWrapper = "(function(d) { var c = d.createElement('script'); c.src = %s; d.body.appendChild(c); })(document)";
-            }
-            injectDeferredObject(args.getString(0), jsWrapper);
-        }
-        else if (action.equals("injectStyleCode")) {
-            String jsWrapper;
-            if (args.getBoolean(1)) {
-                jsWrapper = String.format("(function(d) { var c = d.createElement('style'); c.innerHTML = %%s; d.body.appendChild(c); prompt('', 'gap-iab://%s');})(document)", callbackContext.getCallbackId());
-            } else {
-                jsWrapper = "(function(d) { var c = d.createElement('style'); c.innerHTML = %s; d.body.appendChild(c); })(document)";
-            }
-            injectDeferredObject(args.getString(0), jsWrapper);
-        }
-        else if (action.equals("injectStyleFile")) {
-            String jsWrapper;
-            if (args.getBoolean(1)) {
-                jsWrapper = String.format("(function(d) { var c = d.createElement('link'); c.rel='stylesheet'; c.type='text/css'; c.href = %%s; d.head.appendChild(c); prompt('', 'gap-iab://%s');})(document)", callbackContext.getCallbackId());
-            } else {
-                jsWrapper = "(function(d) { var c = d.createElement('link'); c.rel='stylesheet'; c.type='text/css'; c.href = %s; d.head.appendChild(c); })(document)";
-            }
-            injectDeferredObject(args.getString(0), jsWrapper);
-        }
-        else if (action.equals("show")) {
-            this.cordova.getActivity().runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    dialog.show();
-                }
-            });
-            PluginResult pluginResult = new PluginResult(PluginResult.Status.OK);
-            pluginResult.setKeepCallback(true);
-            this.callbackContext.sendPluginResult(pluginResult);
-        }
-        else if (action.equals("hide")) {
-            this.cordova.getActivity().runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    dialog.hide();
-                }
-            });
-            PluginResult pluginResult = new PluginResult(PluginResult.Status.OK);
-            pluginResult.setKeepCallback(true);
-            this.callbackContext.sendPluginResult(pluginResult);
         }
         else {
             return false;
@@ -603,7 +615,7 @@ public class NativeAd extends CordovaPlugin {
                 dialog.getWindow().getAttributes().windowAnimations = android.R.style.Animation_Dialog;
                 dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
                 dialog.setCancelable(true);
-                dialog.setInAppBroswer(getNativeAd());
+                dialog.setNativeAd(getNativeAd());
 
                 // Main container layout
                 LinearLayout main = new LinearLayout(cordova.getActivity());
@@ -729,7 +741,7 @@ public class NativeAd extends CordovaPlugin {
                 inAppWebView.setLayoutParams(new LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
                 inAppWebView.setId(Integer.valueOf(6));
                 // File Chooser Implemented ChromeClient
-                inAppWebView.setWebChromeClient(new InAppChromeClient(thatWebView) {
+                inAppWebView.setWebChromeClient(new ChromeClient(thatWebView) {
                     // For Android 5.0+
                     public boolean onShowFileChooser (WebView webView, ValueCallback<Uri[]> filePathCallback, WebChromeClient.FileChooserParams fileChooserParams)
                     {
@@ -808,6 +820,15 @@ public class NativeAd extends CordovaPlugin {
                 } else if (clearSessionCache) {
                     CookieManager.getInstance().removeSessionCookie();
                 }
+                inAppWebView.setDownloadListener(new DownloadListener() {
+                    @Override
+                    public void onDownloadStart(String url, String userAgent, String contentDisposition, String mimetype, long contentLength) {
+                        Uri uri = Uri.parse(url);
+                        Toast.makeText(cordova.getActivity(), uri.toString(), Toast.LENGTH_LONG).show();
+                        Intent intent = new Intent(Intent.ACTION_VIEW, uri);
+                        cordova.getActivity().startActivity(intent);
+                    }
+                });
 
                 inAppWebView.loadUrl(url);
                 inAppWebView.setId(Integer.valueOf(6));
@@ -822,7 +843,7 @@ public class NativeAd extends CordovaPlugin {
 
                 // Add the views to our toolbar
                 toolbar.addView(actionButtonContainer);
-                toolbar.addView(edittext);
+                // toolbar.addView(edittext);
                 toolbar.addView(close);
 
                 // Don't add the toolbar if its been disabled

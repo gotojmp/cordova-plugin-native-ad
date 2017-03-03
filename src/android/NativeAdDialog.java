@@ -16,7 +16,7 @@
        specific language governing permissions and limitations
        under the License.
 */
-package com.gotojmp.cordova.native-ad;
+package com.gotojmp.cordova.NativeAd;
 
 import android.app.AlertDialog;
 import android.app.Dialog;

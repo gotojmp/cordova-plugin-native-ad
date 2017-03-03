@@ -72,13 +72,13 @@
 
 @end
 
-@interface AdView : WKWebView {
+@interface AdView : UIWebView {
 }
 
 @property (nonatomic) int id;
 @property (nonatomic, weak) CDVNativeAd* adDelegate;
 
-- (void)load:(NSString*)html;
+- (void)load:(NSString*)html closeAt:(NSString*)pos;
 - (void)close;
 
 @end

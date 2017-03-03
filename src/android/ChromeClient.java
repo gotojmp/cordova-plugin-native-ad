@@ -16,7 +16,7 @@
        specific language governing permissions and limitations
        under the License.
 */
-package com.gotojmp.cordova.native-ad;
+package com.gotojmp.cordova.NativeAd;
 
 import org.apache.cordova.CordovaWebView;
 import org.apache.cordova.LOG;
@@ -37,7 +37,7 @@ public class ChromeClient extends WebChromeClient {
     private String LOG_TAG = "InAppChromeClient";
     private long MAX_QUOTA = 100 * 1024 * 1024;
 
-    public InAppChromeClient(CordovaWebView webView) {
+    public ChromeClient(CordovaWebView webView) {
         super();
         this.webView = webView;
     }
