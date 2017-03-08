@@ -836,7 +836,7 @@ public class NativeAd extends CordovaPlugin {
                     @Override
                     public void onDownloadStart(String url, String userAgent, String contentDisposition, String mimetype, long contentLength) {
                         Uri uri = Uri.parse(url);
-                        Toast.makeText(cordova.getActivity(), uri.toString(), Toast.LENGTH_LONG).show();
+                        //Toast.makeText(cordova.getActivity(), uri.toString(), Toast.LENGTH_LONG).show();
                         Intent intent = new Intent(Intent.ACTION_VIEW, uri);
                         cordova.getActivity().startActivity(intent);
                     }
