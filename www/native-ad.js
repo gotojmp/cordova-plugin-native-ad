@@ -54,7 +54,7 @@
             callbacks = callbacks || {};
             var cb = function (eventname) {
                 console.log('open ad landing page');
-                callbacks(eventname);
+                // callbacks(eventname);
             };
             strWindowFeatures = strWindowFeatures || "";
             exec(cb, cb, "NativeAd", "openUrl", [strUrl, strWindowName, strWindowFeatures]);
