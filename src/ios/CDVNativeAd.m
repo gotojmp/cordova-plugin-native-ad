@@ -68,6 +68,12 @@
     [self.commandDelegate evalJs:js];
 }
 
+- (void)onClick:(int)id pos:(NSString*)pos
+{
+    NSString* js = [NSString stringWithFormat:@"window.NativeAd.onClick(%d, '%@');", id, pos];
+    [self.commandDelegate evalJs:js];
+}
+
 - (void)close:(CDVInvokedUrlCommand*)command
 {
     int id = [[command argumentAtIndex:0] intValue];
@@ -117,12 +123,46 @@
     [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
 }
 
+    
+- (void)openDeepLink:(CDVInvokedUrlCommand*)command
+{
+    NSString* deepLink = [[command argumentAtIndex:0] stringByAddingPercentEscapesUsingEncoding:NSUTF8StringEncoding];
+    NSString* url = [[command argumentAtIndex:1] stringByAddingPercentEscapesUsingEncoding:NSUTF8StringEncoding];
+    NSString* options = [command argumentAtIndex:2 withDefault:@"" andClass:[NSString class]];
+    
+    self.callbackId = command.callbackId;
+    
+    if (deepLink != nil) {
+        NSURL* deepLinkUrl = [NSURL URLWithString:deepLink];
+        [[UIApplication sharedApplication] openURL:deepLinkUrl options:@{} completionHandler:^(BOOL success) {
+            if (success) {
+                NSLog(@"open deeplink success");
+            } else {
+#ifdef __CORDOVA_4_0_0
+                NSURL* baseUrl = [self.webViewEngine URL];
+#else
+                NSURL* baseUrl = [self.webView.request URL];
+#endif
+                NSURL* absoluteUrl = [[NSURL URLWithString:url relativeToURL:baseUrl] absoluteURL];
+                [self openInNativeAd:absoluteUrl withOptions:options];
+            }
+            CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
+            [pluginResult setKeepCallback:[NSNumber numberWithBool:YES]];
+            [self.commandDelegate sendPluginResult:pluginResult callbackId:self.callbackId];
+        }];
+    } else {
+        CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"incorrect number of arguments"];
+        [pluginResult setKeepCallback:[NSNumber numberWithBool:YES]];
+        [self.commandDelegate sendPluginResult:pluginResult callbackId:self.callbackId];
+    }
+}
+
 
 - (void)openUrl:(CDVInvokedUrlCommand*)command
 {
     CDVPluginResult* pluginResult;
 
-    NSString* url = [command argumentAtIndex:0];
+    NSString* url = [[command argumentAtIndex:0] stringByAddingPercentEscapesUsingEncoding:NSUTF8StringEncoding];
     NSString* target = [command argumentAtIndex:1 withDefault:kNativeAdTargetSelf];
     NSString* options = [command argumentAtIndex:2 withDefault:@"" andClass:[NSString class]];
 
@@ -336,7 +376,8 @@
 - (void)openInSystem:(NSURL*)url
 {
     [[NSNotificationCenter defaultCenter] postNotification:[NSNotification notificationWithName:CDVPluginHandleOpenURLNotification object:url]];
-    [[UIApplication sharedApplication] openURL:url];
+    [[UIApplication sharedApplication] openURL:url options:@{} completionHandler:^(BOOL success) {
+    }];
 }
 
 // This is a helper method for the inject{Script|Style}{Code|File} API calls, which
@@ -550,7 +591,7 @@
 
 #pragma mark AdView
 
-@interface AdView () <UIWebViewDelegate> {
+@interface AdView () <UIWebViewDelegate,UIGestureRecognizerDelegate> {
 }
 @end
 
@@ -582,8 +623,23 @@
     [closeButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
     [closeButton setTitle:@"关闭广告" forState:UIControlStateNormal];
     [closeButton addTarget:self action:@selector(userClose) forControlEvents:UIControlEventTouchUpInside];
+    
+    UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc]initWithTarget:self action:@selector(handleTap:)];
+    tap.delegate = self;
+    [self addGestureRecognizer:tap];
 
     [self addSubview:closeButton];
+}
+
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)otherGestureRecognizer{
+    return YES;
+}
+    
+-(void)handleTap:(id)sender
+{
+    UITapGestureRecognizer *tap = sender;
+    CGPoint tapPoint = [tap locationInView:tap.view];
+    self.clickPos = [NSString stringWithFormat:@"%f,%f", tapPoint.x, tapPoint.y];
 }
 
 - (void)userClose
@@ -620,6 +676,7 @@
         )
         ) {
         [self.adDelegate openInNativeAd:url withOptions:@""];
+        [self.adDelegate onClick:self.id pos:self.clickPos];
         return NO;
     }
     return YES;

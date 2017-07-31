@@ -40,6 +40,7 @@
 @property (nonatomic, retain) NSMutableDictionary* ads;
 
 - (void)open:(CDVInvokedUrlCommand*)command;
+- (void)openDeepLink:(CDVInvokedUrlCommand*)command;
 - (void)openUrl:(CDVInvokedUrlCommand*)command;
 - (void)close:(CDVInvokedUrlCommand*)command;
 - (void)injectScriptCode:(CDVInvokedUrlCommand*)command;
@@ -77,6 +78,7 @@
 
 @property (nonatomic) int id;
 @property (nonatomic, weak) CDVNativeAd* adDelegate;
+@property (nonatomic) NSString* clickPos;
 
 - (void)load:(NSString*)html closeAt:(NSString*)pos;
 - (void)close;

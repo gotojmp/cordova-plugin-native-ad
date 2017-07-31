@@ -30,6 +30,7 @@
     function AdView() {
         this.id = 0;
         this.onClose = function () {};
+        this.onClick = function () {};
     }
 
     AdView.prototype = {
