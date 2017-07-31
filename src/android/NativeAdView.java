@@ -30,7 +30,10 @@ import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.view.Gravity;
 import android.view.View;
+import android.view.MotionEvent;
 import android.widget.Toast;
+
+import org.apache.cordova.LOG;
 
 /**
  * Created by Oliver on 22/11/2013.
@@ -42,6 +45,10 @@ public class NativeAdView extends FrameLayout {
     private RelativeLayout container = null;
     public int id = 0;
     private Boolean hidden = false;
+    private String downX = "";
+    private String downY = "";
+    private String upX = "";
+    private String upY = "";
 
     public NativeAdView(Context context, NativeAd nativeAd, int w, int h, int cw, int ch, String closeAt) {
         super(context);
@@ -62,6 +69,23 @@ public class NativeAdView extends FrameLayout {
         settings.setLayoutAlgorithm(WebSettings.LayoutAlgorithm.SINGLE_COLUMN);
         settings.setUseWideViewPort(true);
         settings.setLoadWithOverviewMode(true);
+        this.webView.setOnTouchListener(new View.OnTouchListener() {
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                int action = event.getAction();
+                if(action==MotionEvent.ACTION_DOWN){
+                    downX = String.valueOf(event.getX());
+                    downY = String.valueOf(event.getY());
+                    LOG.e("NativeAd", "touch down");
+                }
+                if(action==MotionEvent.ACTION_UP){
+                    LOG.e("NativeAd", "touch up");
+                    upX = String.valueOf(event.getX());
+                    upY = String.valueOf(event.getY());
+                }
+                return false;
+            }
+        });
         this.webView.setWebViewClient(new NativeAdViewClient(this));
         this.container.addView(this.webView);
 
@@ -89,6 +113,7 @@ public class NativeAdView extends FrameLayout {
         close.setText("关闭广告");
         close.setGravity(Gravity.CENTER);
         close.setOnClickListener(new View.OnClickListener() {
+            @Override
             public void onClick(View v) {
                 closeAdView(true);
             }
@@ -111,6 +136,11 @@ public class NativeAdView extends FrameLayout {
         }
     }
 
+    public void clickAdView() {
+        String pos = this.downX + "," + this.downY + "," + this.upX + "," + this.upY;
+        this.nativeAd.onClick(this.id, pos);
+    }
+
     public class NativeAdViewClient extends WebViewClient {
         NativeAdView adView;
 
@@ -122,6 +152,7 @@ public class NativeAdView extends FrameLayout {
             if (url.startsWith("http://") || url.startsWith("https://")) {
                 // 调用系统默认浏览器处理url
                 view.stopLoading();
+                this.adView.clickAdView();
                 this.adView.nativeAd.showWebPage(url, null);
                 return true;
             }

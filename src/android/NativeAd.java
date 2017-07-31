@@ -21,6 +21,8 @@ package com.gotojmp.cordova.NativeAd;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.graphics.Color;
 import android.provider.Browser;
 import android.content.res.Resources;
@@ -75,6 +77,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.StringTokenizer;
+import java.util.List;
 
 @SuppressLint("SetJavaScriptEnabled")
 public class NativeAd extends CordovaPlugin {
@@ -102,7 +105,8 @@ public class NativeAd extends CordovaPlugin {
     private WebView inAppWebView;
     private EditText edittext;
     private CallbackContext callbackContext;
-    private CallbackContext onCallbackContext;
+    private CallbackContext onCloseCallbackContext;
+    private CallbackContext onClickCallbackContext;
     private boolean showLocationBar = true;
     private boolean showZoomControls = true;
     private boolean openWindowHidden = false;
@@ -139,7 +143,20 @@ public class NativeAd extends CordovaPlugin {
     public void onClose(int id) {
         PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, id);
         pluginResult.setKeepCallback(true);
-        this.onCallbackContext.sendPluginResult(pluginResult);
+        this.onCloseCallbackContext.sendPluginResult(pluginResult);
+    }
+
+    public void onClick(int id, String pos) {
+        try {
+            JSONObject res = new JSONObject();
+            res.put("id", id);
+            res.put("pos", pos);
+            PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, res);
+            pluginResult.setKeepCallback(true);
+            this.onClickCallbackContext.sendPluginResult(pluginResult);
+        } catch (JSONException ex) {
+            LOG.e(LOG_TAG, "JSON error.");
+        }
     }
 
     /**
@@ -197,7 +214,13 @@ public class NativeAd extends CordovaPlugin {
             }
         }
         else if (action.equals("onClose")) {
-            this.onCallbackContext = callbackContext;
+            this.onCloseCallbackContext = callbackContext;
+            PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, 0);
+            pluginResult.setKeepCallback(true);
+            callbackContext.sendPluginResult(pluginResult);
+        }
+        else if (action.equals("onClick")) {
+            this.onClickCallbackContext = callbackContext;
             PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, 0);
             pluginResult.setKeepCallback(true);
             callbackContext.sendPluginResult(pluginResult);
@@ -296,6 +319,31 @@ public class NativeAd extends CordovaPlugin {
                 }
             });
         }
+		else if (action.equals("openDeepLink")) {
+			this.callbackContext = callbackContext;
+			final String deepLink = args.getString(0);
+			final String url = args.getString(1);
+
+			final HashMap<String, Boolean> features = parseFeature(args.optString(2));
+
+			this.cordova.getActivity().runOnUiThread(new Runnable() {
+				@Override
+				public void run() {
+					String result = "";
+					final Intent customSchemeIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(deepLink));
+					final PackageManager packageManager = cordova.getActivity().getApplicationContext().getPackageManager();
+					final List<ResolveInfo> resolvedActivities = packageManager.queryIntentActivities(customSchemeIntent, 0);
+					if (resolvedActivities.size() > 0) {
+						cordova.getActivity().startActivity(customSchemeIntent);
+					} else {
+						result = showWebPage(url, features);
+					}
+					PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, result);
+					pluginResult.setKeepCallback(true);
+					callbackContext.sendPluginResult(pluginResult);
+				}
+			});
+		}
         else {
             return false;
         }
@@ -976,56 +1024,67 @@ public class NativeAd extends CordovaPlugin {
          */
         @Override
         public boolean shouldOverrideUrlLoading(WebView webView, String url) {
-            if (url.startsWith(WebView.SCHEME_TEL)) {
-                try {
-                    Intent intent = new Intent(Intent.ACTION_DIAL);
-                    intent.setData(Uri.parse(url));
-                    cordova.getActivity().startActivity(intent);
-                    return true;
-                } catch (android.content.ActivityNotFoundException e) {
-                    LOG.e(LOG_TAG, "Error dialing " + url + ": " + e.toString());
-                }
-            } else if (url.startsWith("geo:") || url.startsWith(WebView.SCHEME_MAILTO) || url.startsWith("market:") || url.startsWith("intent:")) {
-                try {
-                    Intent intent = new Intent(Intent.ACTION_VIEW);
-                    intent.setData(Uri.parse(url));
-                    cordova.getActivity().startActivity(intent);
-                    return true;
-                } catch (android.content.ActivityNotFoundException e) {
-                    LOG.e(LOG_TAG, "Error with " + url + ": " + e.toString());
-                }
-            }
-            // If sms:5551212?body=This is the message
-            else if (url.startsWith("sms:")) {
-                try {
-                    Intent intent = new Intent(Intent.ACTION_VIEW);
+			if (url.startsWith("http://") || url.startsWith("https://")) {
+				return false;
+			} else if (url.startsWith(WebView.SCHEME_TEL)) {
+				try {
+					Intent intent = new Intent(Intent.ACTION_DIAL);
+					intent.setData(Uri.parse(url));
+					cordova.getActivity().startActivity(intent);
+					return true;
+				} catch (android.content.ActivityNotFoundException e) {
+					LOG.e(LOG_TAG, "Error dialing " + url + ": " + e.toString());
+				}
+			} else if (url.startsWith("geo:") || url.startsWith(WebView.SCHEME_MAILTO) || url.startsWith("market:") || url.startsWith("intent:")) {
+				try {
+					Intent intent = new Intent(Intent.ACTION_VIEW);
+					intent.setData(Uri.parse(url));
+					cordova.getActivity().startActivity(intent);
+					return true;
+				} catch (android.content.ActivityNotFoundException e) {
+					LOG.e(LOG_TAG, "Error with " + url + ": " + e.toString());
+				}
+			} else if (url.startsWith("sms:")) {
+				try {
+					Intent intent = new Intent(Intent.ACTION_VIEW);
 
-                    // Get address
-                    String address = null;
-                    int parmIndex = url.indexOf('?');
-                    if (parmIndex == -1) {
-                        address = url.substring(4);
-                    } else {
-                        address = url.substring(4, parmIndex);
+					// Get address
+					String address = null;
+					int parmIndex = url.indexOf('?');
+					if (parmIndex == -1) {
+						address = url.substring(4);
+					} else {
+						address = url.substring(4, parmIndex);
 
-                        // If body, then set sms body
-                        Uri uri = Uri.parse(url);
-                        String query = uri.getQuery();
-                        if (query != null) {
-                            if (query.startsWith("body=")) {
-                                intent.putExtra("sms_body", query.substring(5));
-                            }
-                        }
-                    }
-                    intent.setData(Uri.parse("sms:" + address));
-                    intent.putExtra("address", address);
-                    intent.setType("vnd.android-dir/mms-sms");
-                    cordova.getActivity().startActivity(intent);
-                    return true;
-                } catch (android.content.ActivityNotFoundException e) {
-                    LOG.e(LOG_TAG, "Error sending sms " + url + ":" + e.toString());
-                }
-            }
+						// If body, then set sms body
+						Uri uri = Uri.parse(url);
+						String query = uri.getQuery();
+						if (query != null) {
+							if (query.startsWith("body=")) {
+								intent.putExtra("sms_body", query.substring(5));
+							}
+						}
+					}
+					intent.setData(Uri.parse("sms:" + address));
+					intent.putExtra("address", address);
+					intent.setType("vnd.android-dir/mms-sms");
+					cordova.getActivity().startActivity(intent);
+					return true;
+				} catch (android.content.ActivityNotFoundException e) {
+					LOG.e(LOG_TAG, "Error sending sms " + url + ":" + e.toString());
+				}
+			} else {
+				final Intent customSchemeIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+				final PackageManager packageManager = cordova.getActivity().getApplicationContext().getPackageManager();
+				final List<ResolveInfo> resolvedActivities = packageManager.queryIntentActivities(customSchemeIntent, 0);
+				if (resolvedActivities.size() > 0) {
+					cordova.getActivity().startActivity(customSchemeIntent);
+					closeDialog();
+				} else {
+					openExternal(url);
+				}
+				return true;
+			}
             return false;
         }
 

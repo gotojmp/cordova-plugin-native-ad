@@ -44,17 +44,33 @@
             var ad = this.ads[id];
             if (ad) ad.onClose();
         },
-        openUrl: function(strUrl, strWindowName, strWindowFeatures, callbacks) {
+        onClick: function (id, pos) {
+            var ad = this.ads[id];
+            if (ad) ad.onClick(pos);
+        },
+        openDeepLink: function(deepLink, strUrl, strWindowFeatures, callback) {
+            strUrl = urlutil.makeAbsolute(strUrl);
+            var cb = function () {
+                console.log('open ad deep link');
+                if (typeof callback == 'function') {
+                    callback.apply(null, arguments);
+                }
+            };
+            strWindowFeatures = strWindowFeatures || "";
+            exec(cb, cb, "NativeAd", "openDeepLink", [deepLink, strUrl, strWindowFeatures]);
+        },
+        openUrl: function(strUrl, strWindowName, strWindowFeatures, callback) {
             // Don't catch calls that write to existing frames (e.g. named iframes).
             if (window.frames && window.frames[strWindowName]) {
                 var origOpenFunc = modulemapper.getOriginalSymbol(window, 'open');
                 return origOpenFunc.apply(window, arguments);
             }
             strUrl = urlutil.makeAbsolute(strUrl);
-            callbacks = callbacks || {};
-            var cb = function (eventname) {
+            var cb = function () {
                 console.log('open ad landing page');
-                // callbacks(eventname);
+                if (typeof callback == 'function') {
+                    callback.apply(null, arguments);
+                }
             };
             strWindowFeatures = strWindowFeatures || "";
             exec(cb, cb, "NativeAd", "openUrl", [strUrl, strWindowName, strWindowFeatures]);
@@ -80,6 +96,11 @@
             exec(function (id) {
                 id && NativeAd.onClose(id);
             }, null, "NativeAd", "onClose", []);
+        });
+        channel.onCordovaReady.subscribe(function () {
+            exec(function (obj) {
+                obj.id && NativeAd.onClick(obj.id, obj.pos);
+            }, null, "NativeAd", "onClick", []);
         });
     }
 
